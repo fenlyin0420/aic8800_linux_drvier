@@ -1215,7 +1215,7 @@ int aicbt_patch_table_load(struct aic_usb_dev *usbdev, struct aicbt_patch_table 
 			data += 2;
 		}
 		if (p->type == AICBT_PT_PWRON)
-			udelay(500);
+			mdelay(100);
 	}
 	aicbt_patch_table_free(head);
 	return 0;

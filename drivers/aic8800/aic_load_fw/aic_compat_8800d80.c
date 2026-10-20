@@ -280,6 +280,7 @@ int system_config_8800d80(struct aic_usb_dev *usb_dev){
 		int syscfg_num;
 		int ret, cnt;
 		const u32 mem_addr = 0x40500000;
+		const u32 cache_mem_addr = 0x40100020;
 		struct dbg_mem_read_cfm rd_mem_addr_cfm;
 		ret = rwnx_send_dbg_mem_read_req(usb_dev, mem_addr, &rd_mem_addr_cfm);
 		if (ret) {
@@ -291,6 +292,21 @@ int system_config_8800d80(struct aic_usb_dev *usb_dev){
         }
 		chip_id = (u8)(rd_mem_addr_cfm.memdata >> 16);
 		printk("chip_id=%x, chip_mcu_id = %d\n", chip_id, chip_mcu_id);
+		/* MCU1 parts boot their BT core over cached memory; without this the
+		 * WiFi firmware runs but the BT core never answers HCI. */
+		if (chip_mcu_id) {
+			ret = rwnx_send_dbg_mem_read_req(usb_dev, cache_mem_addr, &rd_mem_addr_cfm);
+			if (ret) {
+				printk("%x rd fail: %d\n", cache_mem_addr, ret);
+				return ret;
+			}
+			rd_mem_addr_cfm.memdata |= 0x01;
+			ret = rwnx_send_dbg_mem_write_req(usb_dev, cache_mem_addr, rd_mem_addr_cfm.memdata);
+			if (ret) {
+				printk("%x write fail: %d\n", cache_mem_addr, ret);
+				return ret;
+			}
+		}
     #if 1
 		syscfg_num = sizeof(syscfg_tbl_8800d80) / sizeof(u32) / 2;
 		for (cnt = 0; cnt < syscfg_num; cnt++) {
@@ -384,7 +400,6 @@ int aicfw_download_fw_8800d80(struct aic_usb_dev *usb_dev)
     if(testmode == FW_NORMAL_MODE){
 
         if (chip_id != CHIP_REV_U01){
-            #if 0
             if(rwnx_plat_bin_fw_upload_android(usb_dev, patch_info.addr_adid, FW_ADID_BASE_NAME_8800D80_U02)) {
                 return -1;
             }
@@ -394,16 +409,9 @@ int aicfw_download_fw_8800d80(struct aic_usb_dev *usb_dev)
             if (aicbt_ext_patch_data_load(usb_dev, &patch_info, FW_PATCH_BASE_NAME_8800D80_U02_EXT)) {
                 return -1;
             }
-            #if 0
-            if (rwnx_plat_bin_fw_patch_table_upload_android(usb_dev, FW_PATCH_TABLE_NAME_8800D80_U02)) {
-                return -1;
-            }
-            #else
             if (aicbt_patch_table_load(usb_dev, head)) {
                 return -1;
             }
-            #endif
-			#endif
             if (IS_CHIP_ID_H()){
                 if(rwnx_plat_bin_fw_upload_android(usb_dev, RAM_FMAC_FW_ADDR_8800D80_U02, FW_BASE_NAME_8800D80_H_U02))
                     return -1;
